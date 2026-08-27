@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SW2.5 戦闘効果管理</title>
+  <style>
+    :root {
+      --bg: #f4f3ee;
+      --panel: #ffffff;
+      --text: #22201d;
+      --muted: #6f6a63;
+      --line: #d8d4cd;
+      --header: #26221f;
+      --header-text: #fff;
+      --stripe: #ece9e3;
+      --accent: #4d675a;
+      --accent-soft: #e8efeb;
+      --danger: #9f3a38;
+      --shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .wrap {
+      width: min(1440px, calc(100% - 24px));
+      margin: 18px auto 40px;
+    }
+    .topbar {
+      display: flex;
+      gap: 16px;
+      align-items: end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: .88rem; }
+    .round-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      box-shadow: var(--shadow);
+    }
+    .round-box label { font-weight: 700; }
+    .round-box input {
+      width: 76px;
+      min-height: 42px;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      font-weight: 700;
+      font-size: 1.05rem;
+      background: #fff;
+    }
+    .icon-btn, .btn {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 12px;
+    }
+    .icon-btn { width: 42px; padding: 0; font-size: 1.2rem; }
+    .btn.primary { background: var(--header); color: #fff; border-color: var(--header); }
+    .btn.danger { color: var(--danger); }
+    .save-note { color: var(--muted); font-size: .8rem; margin-left: 4px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(560px, 1.1fr) minmax(360px, .9fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 12px;
+      background: var(--header);
+      color: var(--header-text);
+    }
+    .panel-head h2 { font-size: 1rem; margin: 0; }
+    .panel-body { padding: 12px; }
+
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      vertical-align: middle;
+      text-align: left;
+    }
+    th {
+      background: #dedbd5;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    tbody tr.even-round td { background: var(--stripe); }
+    tbody tr.expired td { opacity: .48; }
+    tbody tr.active td { box-shadow: inset 0 0 0 9999px rgba(77,103,90,.055); }
+    td.calc { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    td.actions { width: 48px; text-align: center; }
+    .cell-input, .cell-select {
+      width: 100%;
+      min-width: 72px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      padding: 6px 7px;
+      background: transparent;
+      color: inherit;
+    }
+    .cell-input:focus, .cell-select:focus {
+      outline: 2px solid #8ba596;
+      border-color: transparent;
+      background: #fff;
+    }
+    .num { width: 74px; min-width: 64px; }
+    .delete-row {
+      border: 0;
+      background: transparent;
+      color: var(--danger);
+      font-size: 1rem;
+      padding: 5px 7px;
+      border-radius: 5px;
+    }
+    .delete-row:hover { background: #f7e8e8; }
+    .table-footer {
+      display: flex;
+      gap: 8px;
+      padding-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .characters {
+      display: grid;
+      gap: 12px;
+    }
+    .char-card {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      overflow: hidden;
+    }
+    .char-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      background: #dedbd5;
+      padding: 9px 10px;
+      font-weight: 700;
+    }
+    .char-title input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      font-weight: 700;
+      padding: 5px 6px;
+    }
+    .char-title input:focus { background: #fff; outline: 2px solid #8ba596; }
+    .char-title button {
+      border: 0;
+      background: transparent;
+      color: var(--danger);
+      padding: 5px 7px;
+    }
+    .char-empty {
+      padding: 14px 10px;
+      color: var(--muted);
+      font-size: .88rem;
+    }
+    .active-table th { background: #f0eee9; }
+    .active-table td { background: #fff; }
+    .remaining {
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    .remaining.soon { color: #a55a17; }
+
+    .tools {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .file-label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .file-label input { display: none; }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .wrap { width: min(100% - 12px, 1440px); margin-top: 8px; }
+      .panel-body { padding: 8px; }
+      th, td { padding: 6px; }
+      .topbar { align-items: stretch; }
+      .round-box { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>SW2.5 戦闘効果管理</h1>
+        <div class="sub">現在ラウンドを変えると、各キャラクターの有効効果が自動更新されます。</div>
+      </div>
+      <div class="round-box">
+        <label for="currentRound">現在ラウンド</label>
+        <button class="icon-btn" id="roundDown" type="button" aria-label="ラウンドを1減らす">−</button>
+        <input id="currentRound" type="number" min="0" step="1" value="0">
+        <button class="icon-btn" id="roundUp" type="button" aria-label="ラウンドを1増やす">＋</button>
+        <span class="save-note">自動保存</span>
+      </div>
+    </div>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>効果登録</h2>
+          <span id="effectCount"></span>
+        </div>
+        <div class="panel-body">
+          <div class="table-wrap">
+            <table aria-label="効果登録テーブル">
+              <thead>
+                <tr>
+                  <th>開始R</th>
+                  <th>対象</th>
+                  <th>魔法・練技</th>
+                  <th>時間</th>
+                  <th>効果</th>
+                  <th>終了R</th>
+                  <th>有効R</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="effectsBody"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <button class="btn primary" id="addEffect" type="button">＋ 効果を追加</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>現在有効な効果</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span id="activeSummary"></span>
+            <button class="btn" id="copySummary" type="button">コピー</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="characters" id="characters"></div>
+          <div id="copyStatus" class="sub" aria-live="polite" style="margin-top:8px"></div>
+          <div class="table-footer">
+            <button class="btn" id="addCharacter" type="button">＋ キャラクター追加</button>
+          </div>
+          <div class="tools">
+            <button class="btn" id="exportData" type="button">データを書き出す</button>
+            <label class="file-label">データを読み込む<input id="importData" type="file" accept=".json,application/json"></label>
+            <button class="btn danger" id="resetData" type="button">初期状態に戻す</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+<script>
+(() => {
+  const STORAGE_KEY = "sw25-battle-effects-v2";
+  const initialState = {
+    currentRound: 0,
+    characters: [],
+    effects: [],
+    nextId: 1
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const effectsBody = $("effectsBody");
+  const charactersEl = $("characters");
+  const currentRoundEl = $("currentRound");
+
+  function cloneInitial() {
+    return JSON.parse(JSON.stringify(initialState));
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return cloneInitial();
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.effects) || !Array.isArray(parsed.characters)) return cloneInitial();
+      return parsed;
+    } catch {
+      return cloneInitial();
+    }
+  }
+
+  let state = loadState();
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function cleanInt(value, fallback = 0) {
+    const n = Number.parseInt(value, 10);
+    return Number.isFinite(n) ? Math.max(0, n) : fallback;
+  }
+
+  function positiveInt(value, fallback = 1) {
+    const n = Number.parseInt(value, 10);
+    return Number.isFinite(n) ? Math.max(1, n) : fallback;
+  }
+
+  function endRound(e) {
+    return cleanInt(e.start) + positiveInt(e.duration) - 1;
+  }
+
+  function isActive(e) {
+    const r = cleanInt(state.currentRound);
+    return cleanInt(e.start) <= r && endRound(e) >= r;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function targetOptions(selected) {
+    const opts = ["全員", ...state.characters];
+    if (selected && !opts.includes(selected)) opts.push(selected);
+    return opts.map(x => `<option value="${escapeHtml(x)}"${x === selected ? " selected" : ""}>${escapeHtml(x)}</option>`).join("");
+  }
+
+  function renderEffects() {
+    effectsBody.innerHTML = "";
+    const round = cleanInt(state.currentRound);
+
+    if (state.effects.length === 0) {
+      effectsBody.innerHTML = `<tr><td colspan="8" class="char-empty">登録されている効果はありません。</td></tr>`;
+      $("effectCount").textContent = "0件";
+      return;
+    }
+
+    state.effects.forEach((e) => {
+      const tr = document.createElement("tr");
+      const start = cleanInt(e.start);
+      const end = endRound(e);
+      if (start % 2 === 0) tr.classList.add("even-round");
+      if (end < round) tr.classList.add("expired");
+      if (isActive(e)) tr.classList.add("active");
+
+      tr.innerHTML = `
+        <td><input class="cell-input num" data-id="${e.id}" data-field="start" type="number" min="1" value="${start}" aria-label="開始ラウンド"></td>
+        <td><select class="cell-select" data-id="${e.id}" data-field="target" aria-label="対象">${targetOptions(e.target)}</select></td>
+        <td><input class="cell-input" data-id="${e.id}" data-field="name" value="${escapeHtml(e.name)}" aria-label="魔法・練技"></td>
+        <td><input class="cell-input num" data-id="${e.id}" data-field="duration" type="number" min="1" value="${positiveInt(e.duration)}" aria-label="時間"></td>
+        <td><input class="cell-input" data-id="${e.id}" data-field="effect" value="${escapeHtml(e.effect)}" aria-label="効果"></td>
+        <td class="calc">${end}</td>
+        <td class="calc">${start}〜${end}</td>
+        <td class="actions"><button class="delete-row" data-delete="${e.id}" type="button" aria-label="この効果を削除">×</button></td>
+      `;
+      effectsBody.appendChild(tr);
+    });
+
+    $("effectCount").textContent = `${state.effects.length}件`;
+  }
+
+  function renderCharacters() {
+    charactersEl.innerHTML = "";
+    const round = cleanInt(state.currentRound);
+    let activeCount = 0;
+
+    if (state.characters.length === 0) {
+      charactersEl.innerHTML = `<div class="char-empty">登録されているキャラクターはありません。</div>`;
+      $("activeSummary").textContent = `R${round} / 0件`;
+      return;
+    }
+
+    state.characters.forEach((name, index) => {
+      const active = state.effects.filter(e => isActive(e) && (e.target === name || e.target === "全員"));
+      activeCount += active.length;
+
+      const card = document.createElement("div");
+      card.className = "char-card";
+
+      let rows = "";
+      if (active.length) {
+        rows = `
+          <div class="table-wrap">
+            <table class="active-table">
+              <thead>
+                <tr><th>開始R</th><th>魔法・練技</th><th>効果</th><th>終了R</th><th>残り</th></tr>
+              </thead>
+              <tbody>
+                ${active.map(e => {
+                  const end = endRound(e);
+                  const remaining = end - round + 1;
+                  return `<tr>
+                    <td>${cleanInt(e.start)}</td>
+                    <td>${escapeHtml(e.name || "—")}</td>
+                    <td>${escapeHtml(e.effect || "—")}</td>
+                    <td>${end}</td>
+                    <td class="remaining${remaining <= 2 ? " soon" : ""}">あと${remaining}R</td>
+                  </tr>`;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>`;
+      } else {
+        rows = `<div class="char-empty">このラウンドで有効な効果はありません。</div>`;
+      }
+
+      card.innerHTML = `
+        <div class="char-title">
+          <input data-char-index="${index}" value="${escapeHtml(name)}" aria-label="キャラクター名">
+          <button data-remove-char="${index}" type="button" aria-label="${escapeHtml(name)}を削除">×</button>
+        </div>
+        ${rows}
+      `;
+      charactersEl.appendChild(card);
+    });
+
+    $("activeSummary").textContent = `R${round} / ${activeCount}件`;
+  }
+
+  function render() {
+    state.currentRound = cleanInt(state.currentRound);
+    currentRoundEl.value = state.currentRound;
+    renderEffects();
+    renderCharacters();
+    save();
+  }
+
+  effectsBody.addEventListener("input", (ev) => {
+    const el = ev.target;
+    const id = Number(el.dataset.id);
+    const field = el.dataset.field;
+    if (!id || !field) return;
+
+    const item = state.effects.find(x => x.id === id);
+    if (!item) return;
+
+    if (field === "start") item[field] = cleanInt(el.value); else if (field === "duration") item[field] = positiveInt(el.value);
+    else item[field] = el.value;
+
+    save();
+    render();
+  });
+
+  effectsBody.addEventListener("change", (ev) => {
+    const el = ev.target;
+    const id = Number(el.dataset.id);
+    const field = el.dataset.field;
+    if (!id || !field) return;
+    const item = state.effects.find(x => x.id === id);
+    if (!item) return;
+    item[field] = field === "start" ? cleanInt(el.value) : field === "duration" ? positiveInt(el.value) : el.value;
+    render();
+  });
+
+  effectsBody.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-delete]");
+    if (!btn) return;
+    const id = Number(btn.dataset.delete);
+    state.effects = state.effects.filter(x => x.id !== id);
+    render();
+  });
+
+  currentRoundEl.addEventListener("input", () => {
+    state.currentRound = cleanInt(currentRoundEl.value);
+    render();
+  });
+
+  $("roundUp").addEventListener("click", () => {
+    state.currentRound = cleanInt(state.currentRound) + 1;
+    render();
+  });
+
+  $("roundDown").addEventListener("click", () => {
+    state.currentRound = Math.max(0, cleanInt(state.currentRound) - 1);
+    render();
+  });
+
+  $("addEffect").addEventListener("click", () => {
+    state.effects.push({
+      id: state.nextId++,
+      start: cleanInt(state.currentRound),
+      target: state.characters[0] || "全員",
+      name: "",
+      duration: 1,
+      effect: ""
+    });
+    render();
+    requestAnimationFrame(() => {
+      const rows = effectsBody.querySelectorAll("tr");
+      const last = rows[rows.length - 1];
+      last?.querySelector('[data-field="name"]')?.focus();
+    });
+  });
+
+  charactersEl.addEventListener("change", (ev) => {
+    const input = ev.target.closest("[data-char-index]");
+    if (!input) return;
+    const idx = Number(input.dataset.charIndex);
+    const oldName = state.characters[idx];
+    const newName = input.value.trim() || `キャラ${idx + 1}`;
+    state.characters[idx] = newName;
+    state.effects.forEach(e => {
+      if (e.target === oldName) e.target = newName;
+    });
+    render();
+  });
+
+  charactersEl.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-remove-char]");
+    if (!btn) return;
+    const idx = Number(btn.dataset.removeChar);
+    if (state.characters.length <= 1) {
+      alert("キャラクターは最低1人必要です。");
+      return;
+    }
+    const name = state.characters[idx];
+    if (!confirm(`${name} を削除します。個別対象の効果は「全員」に変更します。`)) return;
+    state.characters.splice(idx, 1);
+    state.effects.forEach(e => {
+      if (e.target === name) e.target = "全員";
+    });
+    render();
+  });
+
+  $("addCharacter").addEventListener("click", () => {
+    let n = state.characters.length + 1;
+    let name = `キャラ${n}`;
+    while (state.characters.includes(name)) name = `キャラ${++n}`;
+    state.characters.push(name);
+    render();
+  });
+
+  function buildRoundSummary() {
+    const round = cleanInt(state.currentRound);
+    const lines = [`【　${round}ラウンド目　】`, ""];
+
+    if (state.characters.length === 0) {
+      lines.push("登録されているキャラクターはありません。");
+      return lines.join("\n");
+    }
+
+    state.characters.forEach((name, index) => {
+      const active = state.effects.filter(
+        e => isActive(e) && (e.target === name || e.target === "全員")
+      );
+
+      lines.push(`[${name}]`);
+
+      if (active.length === 0) {
+        lines.push("有効な効果なし");
+      } else {
+        active.forEach(e => {
+          const remaining = endRound(e) - round + 1;
+          lines.push(e.name || "名称未入力");
+          lines.push(`　▶︎${e.effect || "効果未入力"}　あと${remaining}ラウンド`);
+        });
+      }
+
+      if (index < state.characters.length - 1) lines.push("");
+    });
+
+    return lines.join("\n");
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand("copy");
+    textarea.remove();
+
+    if (!ok) throw new Error("copy failed");
+  }
+
+  $("copySummary").addEventListener("click", async () => {
+    const status = $("copyStatus");
+    try {
+      await copyText(buildRoundSummary());
+      status.textContent = "現在ラウンドの効果一覧をコピーしました。";
+      setTimeout(() => {
+        if (status.textContent === "現在ラウンドの効果一覧をコピーしました。") {
+          status.textContent = "";
+        }
+      }, 2500);
+    } catch {
+      status.textContent = "コピーできませんでした。";
+    }
+  });
+
+  $("exportData").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "sw25-battle-effects.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  $("importData").addEventListener("change", async (ev) => {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!Array.isArray(parsed.effects) || !Array.isArray(parsed.characters)) throw new Error();
+      state = parsed;
+      if (!state.nextId) state.nextId = Math.max(0, ...state.effects.map(x => Number(x.id) || 0)) + 1;
+      render();
+    } catch {
+      alert("読み込めるデータではありません。");
+    } finally {
+      ev.target.value = "";
+    }
+  });
+
+  $("resetData").addEventListener("click", () => {
+    if (!confirm("保存中の内容を消して、Excelから作った初期状態に戻しますか？")) return;
+    state = cloneInitial();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
